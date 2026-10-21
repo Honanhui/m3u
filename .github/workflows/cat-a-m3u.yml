@@ -1,0 +1,46 @@
+name: CatVod A方案 生成M3U
+
+on:
+  workflow_dispatch:   # 手动触发
+  schedule:
+    - cron: '0 2 * * *'  # 每天UTC 02:00 也就是北京时间10点，你可以自己改
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300  # 最大5小时，防止跑爆
+    steps:
+      - name: Checkout 仓库代码
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: 安装依赖
+        run: |
+          npm init -y || true
+          npm install node-fetch
+
+      - name: 执行A方案脚本
+        run: node scripts/cat-a-full-stream.mjs
+
+      - name: 上传生成的M3U Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cat-A-playable-m3u
+          path: ./cat-A-可播放.m3u
+          if-no-files-found: error
+          retention-days: 7
+
+      # ==========可选：自动提交m3u回仓库，不需要就删掉这一段==========
+      - name: Commit m3u 回仓库
+        if: success()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add cat-A-可播放.m3u
+          git commit -m "auto: update cat-A m3u $(date -u +'%Y-%m-%d %H:%M UTC')" || echo "无变更跳过提交"
+          git push
